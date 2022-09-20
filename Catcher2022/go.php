@@ -1,22 +1,34 @@
 <?php
-//Just gimme some kind of sign...
-$workingDir = 'c:\\temp\\';
+//$workingDir = '/home/henri/dropcatch/';
 $configFile='config.ini';
 $config=parse_ini_file($configFile);
 $tag=$config['tag'];
 $password=$config['password'];
 $registrant=$config['registrant'];
+$domainsFile=$config['domainsfile'];
+$contactID=$config['contactID'];
+$contactName=$config['contactName'];
+$contactStreet=$config['contactStreet'];
+$contactCity=$config['contactCity'];
+$contactSp=$config['contactSp'];
+$contactPc=$config['contactPc'];
+$contactCc=$config['contactCc'];
+$contactVoice=$config['contactVoice'];
+$contactEmail=$config['contactEmail'];
 
 $nullDate = date_create("1970-01-01 00:00:00", timezone_open("UTC"));
 // Send the domain create request this number of milliseconds before drop time
-$msAdvance = 120;
+$msAdvance = $config['msadvance'];
 // Number of registration attempts to make per domain
-$registrationAttempts = 10;
+$registrationAttempts = $config['registrationattempts'];
 $epp = new Epp();
 
-$epp->connect();
+print "Connecting to EPP".PHP_EOL;
+$epp->connect('tls://epp.nominet.org.uk',700);
+print "Logging in to EPP".PHP_EOL;
 $epp->login($tag, $password);
-$epp->createContact();
+print "Creating Contact".PHP_EOL;
+$epp->createContact($contactID,$contactName,$contactStreet,$contactCity,$contactSp,$contactPc,$contactCc,$contactVoice,$contactEmail);
 
 class domain
 {
@@ -26,7 +38,7 @@ class domain
     public DateTime $dropTime;
 }
 
-$targetDomains = file($workingDir . 'domains.txt');
+$targetDomains = file($domainsFile);
 
 // Read list of domains, check drop time via EPP and place them into an array of objects
 foreach ($targetDomains as $targetDomain) {
@@ -150,7 +162,7 @@ class Epp
     {
         $loginXML = '<?xml version="1.0" encoding="UTF-8"?>
   <epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
     <command>
       <login>
@@ -181,7 +193,7 @@ class Epp
     {
         $logoutXML = '<?xml version="1.0" encoding="UTF-8"?>
   <epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
     <command>
        <logout/>
@@ -291,7 +303,7 @@ class Epp
     }
 
     // Create a contact
-    public function createContact()
+    public function createContact($contactID,$contactName,$contactStreet,$contactCity,$contactSp,$contactPc,$contactCc,$contactVoice,$contactEmail)
     {
         $createContactXML = '<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
@@ -301,24 +313,24 @@ class Epp
     <command>
         <create>
             <contact:create
-                xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" 
+                xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"
                 xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0
                 contact-1.0.xsd">
-                <contact:id>HENRI</contact:id>
+                <contact:id>$contactID</contact:id>
                 <contact:postalInfo type="loc">
-                    <contact:name>Henri Gilbert</contact:name>
+                    <contact:name>$contactName</contact:name>
                     <contact:addr>
-                        <contact:street>38 Carlin Gate</contact:street>            
-                        <contact:city>Blackpool</contact:city>
-                        <contact:sp>England</contact:sp>
-                        <contact:pc>FY2 9QU</contact:pc>
-                        <contact:cc>GB</contact:cc>
+                        <contact:street>$contactStreet</contact:street>
+                        <contact:city>$contactCity</contact:city>
+                        <contact:sp>$contactSp</contact:sp>
+                        <contact:pc>$contactPc</contact:pc>
+                        <contact:cc>$contactCc</contact:cc>
                     </contact:addr>
                 </contact:postalInfo>
-                <contact:voice>+44.7990708422</contact:voice>
-                <contact:email>henri_gilbert@hotmail.com</contact:email>
+                <contact:voice>$contactVoice</contact:voice>
+                <contact:email>$contactEmail</contact:email>
                 <contact:authInfo>
-                    <contact:pw>zRsW26VemKUh4D</contact:pw>
+                    <contact:pw>NotUsed</contact:pw>
                 </contact:authInfo>
             </contact:create>
         </create>
