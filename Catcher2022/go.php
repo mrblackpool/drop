@@ -1,4 +1,5 @@
 <?php
+//Just gimme some kind of sign...
 $workingDir = 'c:\\temp\\';
 $configFile='config.ini';
 $config=parse_ini_file($configFile);
