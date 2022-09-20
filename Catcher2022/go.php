@@ -1,20 +1,20 @@
 <?php
-//$workingDir = '/home/henri/dropcatch/';
-$configFile='config.ini';
-$config=parse_ini_file($configFile);
-$tag=$config['tag'];
-$password=$config['password'];
-$registrant=$config['registrant'];
-$domainsFile=$config['domainsfile'];
-$contactID=$config['contactID'];
-$contactName=$config['contactName'];
-$contactStreet=$config['contactStreet'];
-$contactCity=$config['contactCity'];
-$contactSp=$config['contactSp'];
-$contactPc=$config['contactPc'];
-$contactCc=$config['contactCc'];
-$contactVoice=$config['contactVoice'];
-$contactEmail=$config['contactEmail'];
+// $workingDir = '/home/henri/dropcatch/';
+$configFile = 'config.ini';
+$config = parse_ini_file($configFile);
+$tag = $config['tag'];
+$password = $config['password'];
+$registrant = $config['registrant'];
+$domainsFile = $config['domainsfile'];
+$contactID = $config['contactID'];
+$contactName = $config['contactName'];
+$contactStreet = $config['contactStreet'];
+$contactCity = $config['contactCity'];
+$contactSp = $config['contactSp'];
+$contactPc = $config['contactPc'];
+$contactCc = $config['contactCc'];
+$contactVoice = $config['contactVoice'];
+$contactEmail = $config['contactEmail'];
 
 $nullDate = date_create("1970-01-01 00:00:00", timezone_open("UTC"));
 // Send the domain create request this number of milliseconds before drop time
@@ -23,12 +23,12 @@ $msAdvance = $config['msadvance'];
 $registrationAttempts = $config['registrationattempts'];
 $epp = new Epp();
 
-print "Connecting to EPP".PHP_EOL;
-$epp->connect('tls://epp.nominet.org.uk',700);
-print "Logging in to EPP".PHP_EOL;
+print "Connecting to EPP" . PHP_EOL;
+$epp->connect('tls://epp.nominet.org.uk', 700);
+print "Logging in to EPP" . PHP_EOL;
 $epp->login($tag, $password);
-print "Creating Contact".PHP_EOL;
-$epp->createContact($contactID,$contactName,$contactStreet,$contactCity,$contactSp,$contactPc,$contactCc,$contactVoice,$contactEmail);
+print "Creating Contact" . PHP_EOL;
+$epp->createContact($contactID, $contactName, $contactStreet, $contactCity, $contactSp, $contactPc, $contactCc, $contactVoice, $contactEmail);
 
 class domain
 {
@@ -303,7 +303,7 @@ class Epp
     }
 
     // Create a contact
-    public function createContact($contactID,$contactName,$contactStreet,$contactCity,$contactSp,$contactPc,$contactCc,$contactVoice,$contactEmail)
+    public function createContact($contactID, $contactName, $contactStreet, $contactCity, $contactSp, $contactPc, $contactCc, $contactVoice, $contactEmail)
     {
         $createContactXML = '<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
@@ -316,19 +316,19 @@ class Epp
                 xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"
                 xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0
                 contact-1.0.xsd">
-                <contact:id>$contactID</contact:id>
+                <contact:id>' . $contactID . '</contact:id>
                 <contact:postalInfo type="loc">
-                    <contact:name>$contactName</contact:name>
+                    <contact:name>' . $contactName . '</contact:name>
                     <contact:addr>
-                        <contact:street>$contactStreet</contact:street>
-                        <contact:city>$contactCity</contact:city>
-                        <contact:sp>$contactSp</contact:sp>
-                        <contact:pc>$contactPc</contact:pc>
-                        <contact:cc>$contactCc</contact:cc>
+                        <contact:street>' . $contactStreet . '</contact:street>
+                        <contact:city>' . $contactCity. '</contact:city>
+                        <contact:sp>' . $contactSp . '</contact:sp>
+                        <contact:pc>' . $contactPc . '</contact:pc>
+                        <contact:cc>' . $contactCc . '</contact:cc>
                     </contact:addr>
                 </contact:postalInfo>
-                <contact:voice>$contactVoice</contact:voice>
-                <contact:email>$contactEmail</contact:email>
+                <contact:voice>' . $contactVoice . '</contact:voice>
+                <contact:email>' . $contactEmail . '</contact:email>
                 <contact:authInfo>
                     <contact:pw>NotUsed</contact:pw>
                 </contact:authInfo>
@@ -336,7 +336,7 @@ class Epp
         </create>
     </command>
 </epp>';
-
+print $createContactXML;
         return $this->sendEPP($createContactXML, "Command completed successfully");
     }
 
