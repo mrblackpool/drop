@@ -413,7 +413,7 @@ class Epp
     public function getDropTime($domain)
     {
         // DEBUG
-        return (new DateTime("+70 seconds", new DateTimeZone('UTC')));
+        //return (new DateTime("+70 seconds", new DateTimeZone('UTC')));
         //
         
         $checkDomainXML = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>
