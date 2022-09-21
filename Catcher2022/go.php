@@ -21,14 +21,31 @@ $nullDate = date_create("1970-01-01 00:00:00", timezone_open("UTC"));
 $msAdvance = $config['msadvance'];
 // Number of registration attempts to make per domain
 $registrationAttempts = $config['registrationattempts'];
+$connectURL = $config['connectURL'];
 $epp = new Epp();
 
-print "Connecting to EPP" . PHP_EOL;
-$epp->connect('tls://epp.nominet.org.uk', 700);
-print "Logging in to EPP" . PHP_EOL;
-$epp->login($tag, $password);
-print "Creating Contact" . PHP_EOL;
-$epp->createContact($contactID, $contactName, $contactStreet, $contactCity, $contactSp, $contactPc, $contactCc, $contactVoice, $contactEmail);
+print "Connecting to EPP...";
+// $response=$epp->connect('tls://epp.nominet.org.uk', 700);
+$response = $epp->connect($connectURL, 700);
+if ($response) {
+    print "Success" . PHP_EOL;
+} else {
+    print "Error" . PHP_EOL;
+    exit();
+}
+
+print "Logging in to EPP...";
+$response = $epp->login($tag, $password);
+if ($response) {
+    print "Success" . PHP_EOL;
+} else {
+    print "Error" . PHP_EOL;
+    exit();
+}
+
+print "Creating Contact...";
+$response = $epp->createContact($contactID, $contactName, $contactStreet, $contactCity, $contactSp, $contactPc, $contactCc, $contactVoice, $contactEmail);
+print $response . PHP_EOL;
 
 class domain
 {
@@ -70,10 +87,24 @@ while ($currentTarget < $totalTargets) {
         $delay = $delay - 60;
         print "Sleeping for $delay seconds (one minute before " . $domains[$currentTarget]->dropTime->format('Y-m-d H:i:s') . ")" . PHP_EOL;
         sleep($delay);
-        print "Connecting to EPP" . PHP_EOL;
-        $epp->connect();
-        print "Logging on to EPP" . PHP_EOL;
-        $epp->login($tag, $password);
+        print "Connecting to EPP...";
+        // $response=$epp->connect('tls://epp.nominet.org.uk', 700);
+        $response = $epp->connect($connectURL, 700);
+        if ($response) {
+            print "Success" . PHP_EOL;
+        } else {
+            print "Error" . PHP_EOL;
+            exit();
+        }
+
+        print "Logging in to EPP...";
+        $response = $epp->login($tag, $password);
+        if ($response) {
+            print "Success" . PHP_EOL;
+        } else {
+            print "Error" . PHP_EOL;
+            exit();
+        }
         // Drop time in milliseconds
         $msDropTime = dateTimeToMilliseconds($domains[$currentTarget]->dropTime);
         // $msDropTime=(int) (microtime(true) * 1000);
@@ -87,7 +118,7 @@ while ($currentTarget < $totalTargets) {
                  * $epp->createDomain($domains[$currentTarget]->name, $password, $registrant, $i);
                  * }
                  */
-                print $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, 200, 0);
+                print $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, $registrationAttempts, 0);
                 print "$registrationAttempts attempts to register " . $domains[$currentTarget]->name . " have been made" . PHP_EOL;
                 $attemptMade = true;
             } else {
@@ -148,13 +179,14 @@ class Epp
         $this->connection = stream_socket_client($address . ':' . $port, $errno, $errstr, $timeout, $flags, $context);
 
         if ($this->connection == FALSE) {
-            exit("Message: Script failed, likely cause is the recent addition of the IP address to the Nominet test bed due to the large amount of people currently setting up. Please try running the script in 60 minutes time again.\r\n");
+            return (false);
         }
 
         stream_set_blocking($this->connection, (int) false);
         stream_set_write_buffer($this->connection, 0);
 
         $this->readEPP($this->connection);
+        return (true);
     }
 
     // Login to the EPP
@@ -185,7 +217,12 @@ class Epp
     </command>
   </epp>';
 
-        return $this->sendEPP($loginXML, "Command completed successfully");
+        $response = $this->sendEPP($loginXML);
+        if (stripos($response, "Command Completed Successfully") !== false) {
+            return (true);
+        } else {
+            return (false);
+        }
     }
 
     // Logout of the EPP
@@ -298,7 +335,7 @@ class Epp
             }
         }
         $response = $this->readEPP($this->connection);
-
+        print $response;
         return $response;
     }
 
@@ -321,7 +358,7 @@ class Epp
                     <contact:name>' . $contactName . '</contact:name>
                     <contact:addr>
                         <contact:street>' . $contactStreet . '</contact:street>
-                        <contact:city>' . $contactCity. '</contact:city>
+                        <contact:city>' . $contactCity . '</contact:city>
                         <contact:sp>' . $contactSp . '</contact:sp>
                         <contact:pc>' . $contactPc . '</contact:pc>
                         <contact:cc>' . $contactCc . '</contact:cc>
@@ -336,8 +373,13 @@ class Epp
         </create>
     </command>
 </epp>';
-print $createContactXML;
-        return $this->sendEPP($createContactXML, "Command completed successfully");
+
+        $response = $this->sendEPP($createContactXML);
+        if (stripos($response, "Object Exists") !== false) {
+            return ("Object Exists");
+        } else {
+            return ("OK");
+        }
     }
 
     // Check a domain
@@ -361,6 +403,10 @@ print $createContactXML;
 
     public function getDropTime($domain)
     {
+        // DEBUG
+        return (new DateTime("+2 minutes", new DateTimeZone('UTC')));
+
+        //
         $checkDomainXML = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
   <command>
