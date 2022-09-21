@@ -74,6 +74,7 @@ foreach ($targetDomains as $targetDomain) {
 // Sort domains by drop time
 usort($domains, 'compareTimestamp');
 
+print "Logging out of EPP...";
 $epp->logout();
 
 $currentTarget = 0;
@@ -85,7 +86,7 @@ while ($currentTarget < $totalTargets) {
         $now = new DateTime("now", new DateTimeZone('UTC'));
         $delay = $domains[$currentTarget]->dropTime->getTimestamp() - $now->getTimestamp();
         $delay = $delay - 60;
-        print "Sleeping for $delay seconds (one minute before " . $domains[$currentTarget]->dropTime->format('Y-m-d H:i:s') . ")" . PHP_EOL;
+        print "Sleeping for $delay seconds (one minute before " . $domains[$currentTarget]->dropTime->format('Y-m-d H:i:s:u') . ")" . PHP_EOL;
         sleep($delay);
         print "Connecting to EPP...";
         // $response=$epp->connect('tls://epp.nominet.org.uk', 700);
@@ -118,8 +119,12 @@ while ($currentTarget < $totalTargets) {
                  * $epp->createDomain($domains[$currentTarget]->name, $password, $registrant, $i);
                  * }
                  */
+                //$now=new DateTime("now", new DateTimeZone('UTC'));
+                //print $now->format("H:i:s:u")." Domain status: ".$epp->getStatus($domains[$currentTarget]->name).PHP_EOL;
                 print $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, $registrationAttempts, 0);
                 print "$registrationAttempts attempts to register " . $domains[$currentTarget]->name . " have been made" . PHP_EOL;
+                $now=new DateTime("now", new DateTimeZone('UTC'));
+                print $now->format("H:i:s:u")." Domain status: ".$epp->getStatus($domains[$currentTarget]->name).PHP_EOL;
                 $attemptMade = true;
             } else {
                 // Sleep for 1 millisecond
@@ -237,7 +242,7 @@ class Epp
     </command>
   </epp>';
 
-        return $this->sendEPP($logoutXML, "Command completed successfully");
+        return $this->sendEPP($logoutXML);
     }
 
     // Create a domain
@@ -299,7 +304,11 @@ class Epp
      <clTRID>TX" . $transactionID . "</clTRID>
    </command>
 </epp>";
+                $now=new DateTime("now", new DateTimeZone('UTC'));
+                print $now->format("H:i:s:u")." sending TX$transactionID".PHP_EOL;
                 fputs($this->connection, $createDomainXML, strlen($createDomainXML));
+                $now=new DateTime("now", new DateTimeZone('UTC'));
+                print $now->format("H:i:s:u")." sent TX$transactionID".PHP_EOL;
             }
         } else {
             // Convert milliseconds to microseconds
@@ -404,7 +413,7 @@ class Epp
     public function getDropTime($domain)
     {
         // DEBUG
-        // return (new DateTime("+2 minutes", new DateTimeZone('UTC')));
+        return (new DateTime("+70 seconds", new DateTimeZone('UTC')));
         //
         
         $checkDomainXML = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -436,6 +445,32 @@ class Epp
         }
     }
 
+    public function getStatus($domain)
+    {
+        
+        $checkDomainXML = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <check>
+      <domain:check
+       xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>' . $domain . '</domain:name>
+      </domain:check>
+    </check>
+    <clTRID>ABC-12345</clTRID>
+  </command>
+</epp>';
+        
+        $response = $this->sendEPP($checkDomainXML);
+        
+        $pattern = '/<domain:reason>(.*)<\/domain:reason>/';
+        
+        $result = preg_match($pattern, $response, $matches);
+        
+            $status =$matches[1];
+            return ($status);
+}
+    
     // Send EPP request
     public function sendEPP($data)
     {
