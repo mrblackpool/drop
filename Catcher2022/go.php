@@ -132,10 +132,20 @@ while (1) {
                          */
                         // $now=new DateTime("now", new DateTimeZone('UTC'));
                         // print $now->format("H:i:s:u")." Domain status: ".$epp->getStatus($domains[$currentTarget]->name).PHP_EOL;
-                        print $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, $registrationAttempts, 0);
+                        $response = $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, $registrationAttempts, 0);
                         print "$registrationAttempts attempts to register " . $domains[$currentTarget]->name . " have been made" . PHP_EOL;
-                        $now = new DateTime("now", new DateTimeZone('UTC'));
-                        print $now->format("H:i:s:u") . " Domain status: " . $epp->getStatus($domains[$currentTarget]->name) . PHP_EOL;
+                        $successResponse = 'result code="1000"';
+
+                        $successPosition = strpos($response, $successResponse);
+
+                        if ($successPosition !== false) {
+                            $pattern = '/clTRID>(.*?)</';
+                            preg_match($pattern, $response, $matches, PREG_UNMATCHED_AS_NULL, $successPosition);
+                            $successfulTX = $matches[1];
+                            print "Success with $successfulTX" . PHP_EOL;
+                        } else {
+                            print "Failed - Now go home and get your fucking shine box!" . PHP_EOL;
+                        }
                         $attemptMade = true;
                     } else {
                         // Sleep for 1 millisecond
@@ -445,8 +455,8 @@ class Epp
   </command>
 </epp>';
 
-        $response = $this->sendEPP($checkDomainXML);
-
+        $response = $this->sendEPP($checkDomainXML, 10);
+        print $response;
         $pattern = '/<domain:reason>drop (.*)<\/domain:reason>/';
 
         $result = preg_match($pattern, $response, $matches);
@@ -487,11 +497,11 @@ class Epp
     }
 
     // Send EPP request
-    public function sendEPP($data)
+    public function sendEPP($data, $timeout=3)
     {
         fputs($this->connection, $data, strlen($data));
 
-        $response = $this->readEPP($this->connection);
+        $response = $this->readEPP($this->connection, $timeout);
 
         return $response;
     }
