@@ -456,7 +456,7 @@ class Epp
 </epp>';
 
         $response = $this->sendEPP($checkDomainXML, 10);
-        print $response;
+        //print $response;
         $pattern = '/<domain:reason>drop (.*)<\/domain:reason>/';
 
         $result = preg_match($pattern, $response, $matches);
