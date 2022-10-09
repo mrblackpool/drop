@@ -15,6 +15,7 @@ $contactPc = $config['contactPc'];
 $contactCc = $config['contactCc'];
 $contactVoice = $config['contactVoice'];
 $contactEmail = $config['contactEmail'];
+$aggressive = (int) $config['aggressive'];
 
 $nullDate = date_create("1970-01-01 00:00:00", timezone_open("UTC"));
 // Send the domain create request this number of milliseconds before drop time
@@ -84,9 +85,11 @@ while (1) {
         // Sort domains by drop time
         usort($domains, 'compareTimestamp');
 
-        print "Logging out of EPP...";
-        $epp->logout();
-        print "OK" . PHP_EOL;
+        /*
+         * print "Logging out of EPP...";
+         * $epp->logout();
+         * print "OK" . PHP_EOL;
+         */
 
         $currentTarget = 0;
         $totalTargets = sizeof($domains);
@@ -94,29 +97,47 @@ while (1) {
         while ($currentTarget < $totalTargets) {
             if (! (($domains[$currentTarget]->dropTime) == $nullDate)) {
                 print "Next target is " . $domains[$currentTarget]->name . PHP_EOL;
-                $now = new DateTime("now", new DateTimeZone('UTC'));
-                $delay = $domains[$currentTarget]->dropTime->getTimestamp() - $now->getTimestamp();
+
+                $longWait = true;
+                while ($longWait) {
+                    $now = new DateTime("now", new DateTimeZone('UTC'));
+                    $delay = $domains[$currentTarget]->dropTime->getTimestamp() - $now->getTimestamp();
+                    if ($delay > 2700) // If drop is happening in over 45 minutes
+                    {
+                        sleep(1800); // Sleep for 30 minutes
+                        print "Sending keep-alive." . PHP_EOL;
+                        $epp->keepAlive(); // Send keep-alive/hello to Nominet
+                    } else {
+                        $longWait = false;
+                    }
+                }
                 $delay = $delay - 60;
-                print "Sleeping for $delay seconds (one minute before " . $domains[$currentTarget]->dropTime->format('Y-m-d H:i:s:u') . ")" . PHP_EOL;
-                sleep($delay);
-                print "Connecting to EPP...";
-                // $response=$epp->connect('tls://epp.nominet.org.uk', 700);
-                $response = $epp->connect($connectURL, 700);
-                if ($response) {
-                    print "Success" . PHP_EOL;
-                } else {
-                    print "Error" . PHP_EOL;
-                    exit();
+                if ($delay > 0) {
+                    print "Sleeping for $delay seconds (one minute before " . $domains[$currentTarget]->dropTime->format('Y-m-d H:i:s:u') . ")" . PHP_EOL;
+                    sleep($delay);
                 }
 
-                print "Logging in to EPP...";
-                $response = $epp->login($tag, $password);
-                if ($response) {
-                    print "Success" . PHP_EOL;
-                } else {
-                    print "Error" . PHP_EOL;
-                    exit();
-                }
+                /*
+                 * print "Connecting to EPP...";
+                 * // $response=$epp->connect('tls://epp.nominet.org.uk', 700);
+                 * $response = $epp->connect($connectURL, 700);
+                 * if ($response) {
+                 * print "Success" . PHP_EOL;
+                 * } else {
+                 * print "Error" . PHP_EOL;
+                 * exit();
+                 * }
+                 *
+                 * print "Logging in to EPP...";
+                 * $response = $epp->login($tag, $password);
+                 * if ($response) {
+                 * print "Success" . PHP_EOL;
+                 * } else {
+                 * print "Error" . PHP_EOL;
+                 * exit();
+                 * }
+                 */
+
                 // Drop time in milliseconds
                 $msDropTime = dateTimeToMilliseconds($domains[$currentTarget]->dropTime);
                 // $msDropTime=(int) (microtime(true) * 1000);
@@ -125,26 +146,30 @@ while (1) {
                 while (! $attemptMade) {
                     // If current time in milliseconds is greater than or equalal to droptime minus our offset
                     if ((int) (microtime(true) * 1000) >= ($msDropTime - $msAdvance)) {
-                        /*
-                         * for ($i = 0; $i < $registrationAttempts; $i ++) {
-                         * $epp->createDomain($domains[$currentTarget]->name, $password, $registrant, $i);
-                         * }
-                         */
-                        // $now=new DateTime("now", new DateTimeZone('UTC'));
-                        // print $now->format("H:i:s:u")." Domain status: ".$epp->getStatus($domains[$currentTarget]->name).PHP_EOL;
-                        $response = $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, $registrationAttempts, 0);
-                        print "$registrationAttempts attempts to register " . $domains[$currentTarget]->name . " have been made" . PHP_EOL;
-                        $successResponse = 'result code="1000"';
-
-                        $successPosition = strpos($response, $successResponse);
-
-                        if ($successPosition !== false) {
-                            $pattern = '/clTRID>(.*?)</';
-                            preg_match($pattern, $response, $matches, PREG_UNMATCHED_AS_NULL, $successPosition);
-                            $successfulTX = $matches[1];
-                            print "Success with $successfulTX" . PHP_EOL;
+                        if (! $aggressive) {
+                            /*
+                             * for ($i = 0; $i < $registrationAttempts; $i ++) {
+                             * $epp->createDomain($domains[$currentTarget]->name, $password, $registrant, $i);
+                             * }
+                             */
+                            // $now=new DateTime("now", new DateTimeZone('UTC'));
+                            // print $now->format("H:i:s:u")." Domain status: ".$epp->getStatus($domains[$currentTarget]->name).PHP_EOL;
+                            $epp->createDomain2($domains[$currentTarget]->name, $registrant, $registrationAttempts);
                         } else {
-                            print "Failed - Now go home and get your fucking shine box!" . PHP_EOL;
+                            $response = $epp->createDomainAggressively($domains[$currentTarget]->name, $password, $registrant, $registrationAttempts, 0);
+                            print "$registrationAttempts attempts to register " . $domains[$currentTarget]->name . " have been made" . PHP_EOL;
+                            $successResponse = 'result code="1000"';
+
+                            $successPosition = strpos($response, $successResponse);
+
+                            if ($successPosition !== false) {
+                                $pattern = '/clTRID>(.*?)</';
+                                preg_match($pattern, $response, $matches, PREG_UNMATCHED_AS_NULL, $successPosition);
+                                $successfulTX = $matches[1];
+                                print "Success with $successfulTX" . PHP_EOL;
+                            } else {
+                                print "Failed - Now go home and get your fucking shine box!" . PHP_EOL;
+                            }
                         }
                         $attemptMade = true;
                     } else {
@@ -152,7 +177,7 @@ while (1) {
                         usleep(1000);
                     }
                 }
-                $epp->logout();
+                // $epp->logout();
             } else {
                 print "Skipping " . $domains[$currentTarget]->name . " due to invalid drop date" . PHP_EOL;
             }
@@ -165,6 +190,7 @@ while (1) {
         }
         sleep(5);
     }
+    $epp->logout();
 }
 
 function compareTimestamp($obj1, $obj2)
@@ -299,6 +325,66 @@ class Epp
 </epp>";
 
         return $this->sendEPP($createDomainXML, "Command completed successfully");
+    }
+
+    public function createDomain2($domain, $registrant, $maxAttempts)
+    {
+        $i = 0;
+        $TXID = 'TX' . $i;
+        $done = false;
+
+        while (! $done) {
+            $createDomainXML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<epp xmlns=\"urn:ietf:params:xml:ns:epp-1.0\"
+   xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"
+   xsi:schemaLocation=\"urn:ietf:params:xml:ns:epp-1.0
+   epp-1.0.xsd\">
+   <command>
+     <create>
+       <domain:create
+         xmlns:domain=\"urn:ietf:params:xml:ns:domain-1.0\"
+         xsi:schemaLocation=\"urn:ietf:params:xml:ns:domain-1.0
+         domain-1.0.xsd\">
+         <domain:name>" . $domain . "</domain:name>
+         <domain:period unit=\"y\">1</domain:period>
+         <domain:registrant>" . $registrant . "</domain:registrant>
+         <domain:authInfo>
+           <domain:pw>0</domain:pw>
+         </domain:authInfo>
+       </domain:create>
+     </create>
+     <clTRID>" . $TXID . "</clTRID>
+   </command>
+</epp>";
+
+            $now = new DateTime("now", new DateTimeZone('UTC'));
+            print $now->format("H:i:s:u") . " Sending $TXID" . PHP_EOL;
+
+            fputs($this->connection, $createDomainXML, strlen($createDomainXML));
+
+            $now = new DateTime("now", new DateTimeZone('UTC'));
+            print $now->format("H:i:s:u") . " Sent $TXID" . PHP_EOL;
+
+            $buffer = '';
+            $i ++;
+
+            while (strpos($buffer, $TXID) === false) {
+                $buffer .= stream_get_contents($this->connection);
+            }
+
+            if ((strpos($buffer, 'successfully') !== false) || ($i >= $maxAttempts)) {
+                $done = true;
+                if (strpos($buffer, 'successfully') !== false) {
+                    $now = new DateTime("now", new DateTimeZone('UTC'));
+                    print $now->format("H:i:s:u") . " Success with $TXID" . PHP_EOL;
+                } else {
+                    $now = new DateTime("now", new DateTimeZone('UTC'));
+                    print $now->format("H:i:s:u") . " Failed after $i attempts" . PHP_EOL;
+                }
+            }
+
+            $TXID = 'TX' . $i;
+        }
     }
 
     // Create a domain aggressively
@@ -456,7 +542,7 @@ class Epp
 </epp>';
 
         $response = $this->sendEPP($checkDomainXML, 10);
-        //print $response;
+        // print $response;
         $pattern = '/<domain:reason>drop (.*)<\/domain:reason>/';
 
         $result = preg_match($pattern, $response, $matches);
@@ -496,8 +582,23 @@ class Epp
         return ($status);
     }
 
+    public function keepAlive()
+    {
+        $keepAliveXML = '<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0
+	epp-1.0.xsd">
+	<hello/>
+</epp>';
+
+        $response = $this->sendEPP($keepAliveXML);
+
+        return (0);
+    }
+
     // Send EPP request
-    public function sendEPP($data, $timeout=3)
+    public function sendEPP($data, $timeout = 3)
     {
         fputs($this->connection, $data, strlen($data));
 
@@ -524,4 +625,4 @@ class Epp
         return $buffer;
     }
 }
-?>;
+?>
